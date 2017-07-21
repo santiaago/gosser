@@ -99,10 +99,8 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rand.Float64(),
 				rand.Float64(),
 			}
-
-			if err := json.NewEncoder(w).Encode(data); err != nil {
-				log.Println(err)
-				http.Error(w, "unable to encode data", http.StatusInternalServerError)
+			if b, err := json.Marshal(data); err == nil {
+				fmt.Fprintf(w, "%s\n\n", b)
 			}
 
 			// Flush the data immediatly instead of buffering it for later.
