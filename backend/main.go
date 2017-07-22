@@ -100,7 +100,7 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				rand.Float64(),
 			}
 			if b, err := json.Marshal(data); err == nil {
-				fmt.Fprintf(w, "%s\n\n", b)
+				fmt.Fprintf(w, "data:%s\n\n", b)
 			}
 
 			// Flush the data immediatly instead of buffering it for later.
