@@ -69,6 +69,8 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	messageChan := make(chan []byte)
 
 	// Signal the broker that we have a new connection
+	id := len(broker.clients)
+	log.Printf("ServerHTTP %d", id)
 	broker.newClients <- messageChan
 
 	// Remove this client from the map of connected clients
@@ -89,13 +91,13 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Write to the ResponseWriter
 			// Server Sent Events compatible
 			data := struct {
-				Id   string  `json:"id"`
+				ID   int     `json:"id"`
 				Type string  `json:"type"`
 				Time string  `json:"time"`
 				X    float64 `json:"x"`
 				Y    float64 `json:"y"`
 			}{
-				"1",
+				id,
 				"position",
 				fmt.Sprintf("%s", <-messageChan),
 				rand.Float64(),
@@ -109,7 +111,6 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-
 }
 
 func (broker *Broker) listen() {

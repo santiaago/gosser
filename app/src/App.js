@@ -10,7 +10,7 @@ class App extends Component {
     var es = new EventSource('http://localhost:8081/api/sse')
     es.onmessage = function(event){
       const msg = JSON.parse(event.data)
-
+      console.log('id:', msg.id)
       const dots = Object.assign({}, this.state.dots)
       dots[msg.id] = msg
       this.setState({dots: dots})
