@@ -89,11 +89,13 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Write to the ResponseWriter
 			// Server Sent Events compatible
 			data := struct {
+				Id   string  `json:"id"`
 				Type string  `json:"type"`
 				Time string  `json:"time"`
 				X    float64 `json:"x"`
 				Y    float64 `json:"y"`
 			}{
+				"1",
 				"position",
 				fmt.Sprintf("%s", <-messageChan),
 				rand.Float64(),
