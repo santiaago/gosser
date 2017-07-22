@@ -87,7 +87,11 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case <-notify:
 			return
 		default:
-
+			n := len(broker.clients)
+			randId := 1
+			if n != 0 {
+				randId = rand.Intn(n)
+			}
 			// Write to the ResponseWriter
 			// Server Sent Events compatible
 			data := struct {
@@ -97,7 +101,7 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				X    float64 `json:"x"`
 				Y    float64 `json:"y"`
 			}{
-				id,
+				randId,
 				"position",
 				fmt.Sprintf("%s", <-messageChan),
 				rand.Float64(),
