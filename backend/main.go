@@ -9,12 +9,35 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
+
+	"github.com/jmcvetta/randutil"
 )
+
+const (
+	north int = iota
+	east
+	south
+	west
+)
+
+type dot struct {
+	direction int
+	x         int
+	y         int
+}
+
+type World struct {
+	mutex  sync.Mutex
+	dots   map[int]dot
+	height int
+	width  int
+}
 
 // the amount of time to wait when pushing a message to
 // a slow client or a client that closed after `range clients` started.
-const patience time.Duration = time.Second * 1
+const patience time.Duration = time.Millisecond * 20
 
 // Example SSE server in Golang.
 //     $ go run sse.go
@@ -32,6 +55,18 @@ type Broker struct {
 
 	// Client connections registry
 	clients map[chan []byte]bool
+
+	// World
+	world *World
+}
+
+func NewWorld() (world *World) {
+	world = &World{
+		dots:   make(map[int]dot),
+		height: 500,
+		width:  500,
+	}
+	return
 }
 
 func NewServer() (broker *Broker) {
@@ -41,6 +76,7 @@ func NewServer() (broker *Broker) {
 		newClients:     make(chan chan []byte),
 		closingClients: make(chan chan []byte),
 		clients:        make(map[chan []byte]bool),
+		world:          NewWorld(),
 	}
 
 	// Set it running - listening and broadcasting events
@@ -72,6 +108,11 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := len(broker.clients)
 	log.Printf("ServerHTTP %d", id)
 	broker.newClients <- messageChan
+	broker.world.dots[id] = dot{
+		rand.Intn(4),
+		rand.Intn(broker.world.width),
+		rand.Intn(broker.world.height),
+	}
 
 	// Remove this client from the map of connected clients
 	// when this handler exits.
@@ -88,24 +129,25 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 			n := len(broker.clients)
-			randId := 1
+			randID := 1
 			if n != 0 {
-				randId = rand.Intn(n)
+				randID = rand.Intn(n)
 			}
-			// Write to the ResponseWriter
-			// Server Sent Events compatible
+
+			dot := broker.moveDot(randID)
+
 			data := struct {
-				ID   int     `json:"id"`
-				Type string  `json:"type"`
-				Time string  `json:"time"`
-				X    float64 `json:"x"`
-				Y    float64 `json:"y"`
+				ID   int    `json:"id"`
+				Type string `json:"type"`
+				Time string `json:"time"`
+				X    int    `json:"x"`
+				Y    int    `json:"y"`
 			}{
-				randId,
+				randID,
 				"position",
 				fmt.Sprintf("%s", <-messageChan),
-				rand.Float64(),
-				rand.Float64(),
+				dot.x,
+				dot.y,
 			}
 			if b, err := json.Marshal(data); err == nil {
 				fmt.Fprintf(w, "data:%s\n\n", b)
@@ -156,7 +198,7 @@ func main() {
 
 	go func() {
 		for {
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Millisecond * 20)
 			eventString := fmt.Sprintf("%v", time.Now())
 			log.Println("Receiving event")
 			broker.Notifier <- []byte(eventString)
@@ -178,4 +220,51 @@ func hello(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		http.Error(w, "unable to encode data", http.StatusInternalServerError)
 	}
+}
+
+func (broker *Broker) moveDot(randID int) dot {
+	broker.world.mutex.Lock()
+	defer broker.world.mutex.Unlock()
+
+	if _, ok := broker.world.dots[randID]; ok {
+		d := broker.world.dots[randID].direction
+		x := broker.world.dots[randID].x
+		y := broker.world.dots[randID].y
+		choices := make([]randutil.Choice, 0, 4)
+		choices = append(choices, randutil.Choice{70, d})
+		choices = append(choices, randutil.Choice{10, (d + 1) % 4})
+		choices = append(choices, randutil.Choice{10, (d - 1) % 4})
+		choices = append(choices, randutil.Choice{10, (d + 2) % 4})
+		result, err := randutil.WeightedChoice(choices)
+
+		if err != nil {
+			log.Println("unable to pick direction", err)
+		}
+
+		switch result.Item {
+		case north:
+			y = (y + 1) % broker.world.height
+		case east:
+			x = (x + 1) % broker.world.width
+		case south:
+			y = (y - 1) % broker.world.height
+		case west:
+			x = (x - 1) % broker.world.width
+		default:
+			log.Println("unexpected direction result")
+		}
+
+		broker.world.dots[randID] = dot{
+			direction: result.Item.(int),
+			x:         x,
+			y:         y,
+		}
+	} else {
+		broker.world.dots[randID] = dot{
+			rand.Intn(4),
+			rand.Intn(broker.world.width),
+			rand.Intn(broker.world.height),
+		}
+	}
+	return broker.world.dots[randID]
 }
