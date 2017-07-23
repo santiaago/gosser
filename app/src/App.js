@@ -22,7 +22,7 @@ class App extends Component {
     ctx.clearRect(0, 0, 500, 500)
     Object.keys(this.state.dots).forEach(k => {
       const d = this.state.dots[k]
-      ctx.fillRect(d.x * 100, d.y * 100, 10, 10)
+      ctx.fillRect(d.x, d.y, 10, 10)
     })
   }
 
