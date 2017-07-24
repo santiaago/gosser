@@ -147,7 +147,7 @@ func (broker *Broker) listen() {
 }
 
 func main() {
-	log.Println("staring server at 8081..")
+	log.Println("starting server at 8081..")
 
 	broker := NewServer()
 
