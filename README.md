@@ -1,7 +1,7 @@
 # gosser
 go server send events react
 
-#sources:
+# sources:
 
 * [Stream Updates with Server-Sent Events](https://www.html5rocks.com/en/tutorials/eventsource/basics/)
 * [Go sse example](https://github.com/silalahi/go-sse/blob/master/example/server.go)
