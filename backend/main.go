@@ -12,12 +12,7 @@ import (
 	"time"
 )
 
-// the amount of time to wait when pushing a message to
-// a slow client or a client that closed after `range clients` started.
 const patience time.Duration = time.Millisecond * 20
-
-// Example SSE server in Golang.
-//     $ go run sse.go
 
 type Broker struct {
 
@@ -38,7 +33,6 @@ type Broker struct {
 }
 
 func NewServer() (broker *Broker) {
-	// Instantiate a broker
 	broker = &Broker{
 		Notifier:       make(chan []byte, 1),
 		newClients:     make(chan chan []byte),
@@ -46,10 +40,7 @@ func NewServer() (broker *Broker) {
 		clients:        make(map[chan []byte]bool),
 		world:          NewWorld(),
 	}
-
-	// Set it running - listening and broadcasting events
 	go broker.listen()
-
 	return
 }
 
@@ -158,7 +149,6 @@ func (broker *Broker) listen() {
 func main() {
 	log.Println("staring server at 8081..")
 
-	http.HandleFunc("/api/hello", hello)
 	broker := NewServer()
 
 	go func() {
@@ -172,17 +162,4 @@ func main() {
 
 	http.HandleFunc("/api/sse", broker.ServeHTTP)
 	http.ListenAndServe(":8081", nil)
-}
-
-func hello(w http.ResponseWriter, r *http.Request) {
-	data := struct {
-		Message string `json:"message"`
-	}{
-		"hello",
-	}
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Println(err)
-		http.Error(w, "unable to encode data", http.StatusInternalServerError)
-	}
 }
