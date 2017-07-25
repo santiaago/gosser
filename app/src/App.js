@@ -30,12 +30,9 @@ class App extends Component {
     return (
       <div className='App'>
         <div className='App-header'>
-          <h2>Welcome to React</h2>
+          <h2>Go server send event demo by Santiago Arias</h2>
         </div>
-        <p className='App-intro'>
-          To get started, edit <code>src/App.js</code> and save to reload.
-        </p>
-        <canvas ref='canvas' width='500' height='500' />
+        <canvas className='world' ref='canvas'/>
       </div>
     );
   }
