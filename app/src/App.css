@@ -19,8 +19,6 @@
 .world{
   margin-top: 2em;
   align-self: center;
-  width: 500px;
-  height: 500px;
   display: flex;
   background: #E9EBEE;
 }

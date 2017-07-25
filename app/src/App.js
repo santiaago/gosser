@@ -32,7 +32,7 @@ class App extends Component {
         <div className='App-header'>
           <h2>Go server send event demo by Santiago Arias</h2>
         </div>
-        <canvas className='world' ref='canvas'/>
+        <canvas className='world' ref='canvas' height='500' width='500'/>
       </div>
     );
   }
