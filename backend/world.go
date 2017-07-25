@@ -55,10 +55,10 @@ func (world *World) MoveDot(id int) dot {
 	y := world.dots[id].y
 
 	choices := []randutil.Choice{
-		randutil.Choice{70, d},
-		randutil.Choice{10, (d + 1) % 4},
-		randutil.Choice{10, (d - 1) % 4},
-		randutil.Choice{10, (d + 2) % 4},
+		randutil.Choice{Weight: 70, Item: d},
+		randutil.Choice{Weight: 10, Item: (d + 1) % 4},
+		randutil.Choice{Weight: 10, Item: (d - 1) % 4},
+		randutil.Choice{Weight: 10, Item: (d + 2) % 4},
 	}
 
 	result, err := randutil.WeightedChoice(choices)
