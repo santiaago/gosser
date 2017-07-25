@@ -15,44 +15,52 @@ const (
 	west
 )
 
-type dot struct {
+// Entity holds the data of an entity, it's direction and position.
+//
+type Entity struct {
 	direction int
 	x         int
 	y         int
 }
 
+// World holds the data of all entities and the world size.
+//
 type World struct {
-	mutex  sync.Mutex
-	dots   map[int]dot
-	height int
-	width  int
+	mutex    sync.Mutex
+	entities map[int]Entity
+	height   int
+	width    int
 }
 
+// NewWorld create an new World instance.
+//
 func NewWorld() (world *World) {
 	world = &World{
-		dots:   make(map[int]dot),
-		height: 500,
-		width:  500,
+		entities: make(map[int]Entity),
+		height:   500,
+		width:    500,
 	}
 	return
 }
 
-func (world *World) MoveDot(id int) dot {
+// MoveEntity moves an entity in the World instance.
+//
+func (world *World) MoveEntity(id int) Entity {
 	world.mutex.Lock()
 	defer world.mutex.Unlock()
 
-	if _, ok := world.dots[id]; !ok {
-		world.dots[id] = dot{
+	if _, ok := world.entities[id]; !ok {
+		world.entities[id] = Entity{
 			rand.Intn(4),
 			rand.Intn(world.width),
 			rand.Intn(world.height),
 		}
-		return world.dots[id]
+		return world.entities[id]
 	}
 
-	d := world.dots[id].direction
-	x := world.dots[id].x
-	y := world.dots[id].y
+	d := world.entities[id].direction
+	x := world.entities[id].x
+	y := world.entities[id].y
 
 	choices := []randutil.Choice{
 		randutil.Choice{Weight: 70, Item: d},
@@ -81,11 +89,11 @@ func (world *World) MoveDot(id int) dot {
 		log.Println("unexpected direction result")
 	}
 
-	world.dots[id] = dot{
+	world.entities[id] = Entity{
 		direction: result.Item.(int),
 		x:         x,
 		y:         y,
 	}
 
-	return world.dots[id]
+	return world.entities[id]
 }
