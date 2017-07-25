@@ -14,24 +14,25 @@ import (
 
 const patience time.Duration = time.Millisecond * 20
 
+// Broker keeps list of open clients and brodcast events.
+// Broker holds an instance of a World.
+//
 type Broker struct {
-
 	// Events are pushed to this channel by the main events-gathering routine
 	Notifier chan []byte
-
 	// New client connections
 	newClients chan chan []byte
-
 	// Closed client connections
 	closingClients chan chan []byte
-
 	// Client connections registry
 	clients map[chan []byte]bool
-
 	// World
 	world *World
 }
 
+// NewServer creates a broker instance and starts a new
+// go routine to listen all client actions.
+//
 func NewServer() (broker *Broker) {
 	broker = &Broker{
 		Notifier:       make(chan []byte, 1),
@@ -44,6 +45,8 @@ func NewServer() (broker *Broker) {
 	return
 }
 
+// ServeHTTP handles an HTTP request for broker server send requests.
+//
 func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Make sure that the writer supports flushing.
@@ -115,6 +118,8 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// listen listens all client actions in broker.
+//
 func (broker *Broker) listen() {
 	for {
 		select {
@@ -143,7 +148,6 @@ func (broker *Broker) listen() {
 			}
 		}
 	}
-
 }
 
 func main() {
