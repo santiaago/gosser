@@ -66,6 +66,17 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Signal the broker that we have a new connection
 	id := len(broker.clients)
 	log.Printf("ServerHTTP %d", id)
+	newConnection := struct {
+		ID int `json:"id"`
+	}{
+		id,
+	}
+
+	if b, err := json.Marshal(newConnection); err == nil {
+		fmt.Fprintf(w, "event:newConnection\ndata:%s\n\n", b)
+	}
+	flusher.Flush()
+
 	broker.newClients <- messageChan
 
 	// Remove this client from the map of connected clients
