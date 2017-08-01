@@ -7,7 +7,8 @@ class App extends Component {
     this.state = {
       dots: {}
     }
-    var es = new EventSource('http://localhost:8081/api/sse')
+    let es = new EventSource('http://localhost:8081/api/sse')
+
     es.onmessage = function(event){
       const msg = JSON.parse(event.data)
       console.log('id:', msg.id)
@@ -15,6 +16,12 @@ class App extends Component {
       dots[msg.id] = msg
       this.setState({dots: dots})
     }.bind(this)
+
+    es.addEventListener("newConnection", function(e) {
+      var obj = JSON.parse(e.data);
+      console.log(obj)
+      this.setState({connectionID: obj.id})
+    }.bind(this))
   }
 
   componentDidUpdate(prevProps, prevState){
@@ -22,6 +29,12 @@ class App extends Component {
     ctx.clearRect(0, 0, 500, 500)
     Object.keys(this.state.dots).forEach(k => {
       const d = this.state.dots[k]
+      if(d.id === this.state.connectionID){
+        ctx.fillStyle = 'orange'
+        ctx.fillRect(d.x, d.y, 10, 10)
+        ctx.fillStyle = 'black'
+        return
+      }
       ctx.fillRect(d.x, d.y, 10, 10)
     })
   }
