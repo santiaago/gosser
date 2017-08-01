@@ -9,3 +9,4 @@ go server send events react
 * [Writing a Server Sent Events server in Go](https://robots.thoughtbot.com/writing-a-server-sent-events-server-in-go)
 * [Using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
 * [addEventListener](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
+* [server-sent events sse](https://hpbn.co/server-sent-events-sse/)
