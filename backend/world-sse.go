@@ -42,9 +42,31 @@ func NewServer() (broker *Broker) {
 	return
 }
 
-// ServeHTTP handles an HTTP request for broker server send requests.
+// sendConnectionID sends a newConnection event to current connection.
 //
-func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (broker *Broker) sendConnectionID(w http.ResponseWriter) {
+
+	flusher, ok := w.(http.Flusher)
+
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	newConnection := struct {
+		ID int `json:"id"`
+	}{
+		len(broker.clients),
+	}
+
+	if b, err := json.Marshal(newConnection); err == nil {
+		fmt.Fprintf(w, "event:newConnection\ndata:%s\n\n", b)
+	}
+
+	flusher.Flush()
+}
+
+func (broker *Broker) sendWorldUpdate(w http.ResponseWriter, time []byte) {
 
 	// Make sure that the writer supports flushing.
 	//
@@ -55,6 +77,39 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	n := len(broker.clients)
+	randID := 1
+	if n != 0 {
+		randID = rand.Intn(n)
+	}
+
+	var entity Entity
+	entity = broker.world.MoveEntity(randID)
+
+	data := struct {
+		ID   int    `json:"id"`
+		Type string `json:"type"`
+		Time string `json:"time"`
+		X    int    `json:"x"`
+		Y    int    `json:"y"`
+	}{
+		randID,
+		"position",
+		fmt.Sprintf("%s", time),
+		entity.x,
+		entity.y,
+	}
+
+	if b, err := json.Marshal(data); err == nil {
+		fmt.Fprintf(w, "data:%s\n\n", b)
+	}
+	flusher.Flush()
+}
+
+// ServeHTTP handles an HTTP request for broker server send requests.
+//
+func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -62,25 +117,11 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Each connection registers its own message channel with the Broker's connections registry
 	messageChan := make(chan []byte)
-
-	// Signal the broker that we have a new connection
-	id := len(broker.clients)
-	log.Printf("ServerHTTP %d", id)
-	newConnection := struct {
-		ID int `json:"id"`
-	}{
-		id,
-	}
-
-	if b, err := json.Marshal(newConnection); err == nil {
-		fmt.Fprintf(w, "event:newConnection\ndata:%s\n\n", b)
-	}
-	flusher.Flush()
-
 	broker.newClients <- messageChan
 
-	// Remove this client from the map of connected clients
-	// when this handler exits.
+	broker.sendConnectionID(w)
+
+	// Remove this client from the map of connected clients when this handler exits.
 	defer func() {
 		broker.closingClients <- messageChan
 	}()
@@ -93,35 +134,7 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case <-notify:
 			return
 		default:
-			n := len(broker.clients)
-			randID := 1
-			if n != 0 {
-				randID = rand.Intn(n)
-			}
-
-			var entity Entity
-			entity = broker.world.MoveEntity(randID)
-
-			data := struct {
-				ID   int    `json:"id"`
-				Type string `json:"type"`
-				Time string `json:"time"`
-				X    int    `json:"x"`
-				Y    int    `json:"y"`
-			}{
-				randID,
-				"position",
-				fmt.Sprintf("%s", <-messageChan),
-				entity.x,
-				entity.y,
-			}
-
-			if b, err := json.Marshal(data); err == nil {
-				fmt.Fprintf(w, "data:%s\n\n", b)
-			}
-
-			// Flush the data immediatly instead of buffering it for later.
-			flusher.Flush()
+			broker.sendWorldUpdate(w, <-messageChan)
 		}
 	}
 }
