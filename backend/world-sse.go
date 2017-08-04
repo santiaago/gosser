@@ -15,16 +15,15 @@ const patience time.Duration = time.Millisecond * 20
 // Broker holds an instance of a World.
 //
 type Broker struct {
-	// Events are pushed to this channel by the main events-gathering routine
-	Notifier chan []byte
-	// New client connections
-	newClients chan chan []byte
-	// Closed client connections
-	closingClients chan chan []byte
-	// Client connections registry
-	clients map[chan []byte]bool
-	// World
-	world *World
+	Notifier           chan []byte
+	newClients         chan chan []byte
+	closingClients     chan chan []byte
+	clients            map[chan []byte]bool
+	NotifierStats      chan int
+	newClientStats     chan chan int
+	closingClientStats chan chan int
+	clientStats        map[chan int]bool
+	world              *World
 }
 
 // NewServer creates a broker instance and starts a new
@@ -32,13 +31,17 @@ type Broker struct {
 //
 func NewServer() (broker *Broker) {
 	broker = &Broker{
-		Notifier:       make(chan []byte, 1),
-		newClients:     make(chan chan []byte),
-		closingClients: make(chan chan []byte),
-		clients:        make(map[chan []byte]bool),
-		world:          NewWorld(),
+		Notifier:           make(chan []byte, 1),
+		newClients:         make(chan chan []byte),
+		closingClients:     make(chan chan []byte),
+		clients:            make(map[chan []byte]bool),
+		newClientStats:     make(chan chan int),
+		closingClientStats: make(chan chan int),
+		clientStats:        make(map[chan int]bool),
+		world:              NewWorld(),
 	}
 	go broker.listen()
+	go broker.listenStats()
 	return
 }
 
@@ -66,10 +69,28 @@ func (broker *Broker) sendConnectionID(w http.ResponseWriter) {
 	flusher.Flush()
 }
 
+func (broker *Broker) sendNumberOfClientsUpdate(w http.ResponseWriter, numClients int) {
+	flusher, ok := w.(http.Flusher)
+
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		NumClients int `json:"numClients"`
+	}{
+		numClients,
+	}
+
+	if b, err := json.Marshal(data); err == nil {
+		fmt.Fprintf(w, "event:numClients\ndata:%s\n\n", b)
+	}
+	flusher.Flush()
+}
+
 func (broker *Broker) sendWorldUpdate(w http.ResponseWriter, time []byte) {
 
-	// Make sure that the writer supports flushing.
-	//
 	flusher, ok := w.(http.Flusher)
 
 	if !ok {
@@ -115,6 +136,9 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	statsChan := make(chan int)
+	broker.newClientStats <- statsChan
+
 	// Each connection registers its own message channel with the Broker's connections registry
 	messageChan := make(chan []byte)
 	broker.newClients <- messageChan
@@ -123,7 +147,9 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Remove this client from the map of connected clients when this handler exits.
 	defer func() {
+		log.Printf("closing chans")
 		broker.closingClients <- messageChan
+		broker.closingClientStats <- statsChan
 	}()
 
 	// Listen to connection close and un-register messageChan
@@ -133,7 +159,11 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-notify:
 			return
+		case stats := <-statsChan:
+			log.Printf("sendNumberOfClientsUpdate")
+			broker.sendNumberOfClientsUpdate(w, stats)
 		default:
+			log.Printf("sendWorldUpdate")
 			broker.sendWorldUpdate(w, <-messageChan)
 		}
 	}
@@ -151,9 +181,6 @@ func (broker *Broker) listen() {
 			broker.clients[s] = true
 			log.Printf("Client added. %d registered clients", len(broker.clients))
 		case s := <-broker.closingClients:
-
-			// A client has dettached and we want to
-			// stop sending them messages.
 			delete(broker.clients, s)
 			log.Printf("Removed client. %d registered clients", len(broker.clients))
 		case event := <-broker.Notifier:
@@ -167,6 +194,25 @@ func (broker *Broker) listen() {
 					log.Print("Skipping client.")
 				}
 			}
+		}
+	}
+}
+
+// listenStats listens all client stat actions in broker.
+//
+func (broker *Broker) listenStats() {
+	for {
+		select {
+		case s := <-broker.newClientStats:
+			broker.clientStats[s] = true
+			log.Printf("NumberOfClients client added. %d registered clients", len(broker.clientStats))
+			for msgChan := range broker.clientStats {
+				log.Printf("New client stats >>>")
+				msgChan <- len(broker.clients)
+			}
+		case s := <-broker.closingClientStats:
+			delete(broker.clientStats, s)
+			log.Printf("Removed number of clients. %d registered clients", len(broker.clientStats))
 		}
 	}
 }

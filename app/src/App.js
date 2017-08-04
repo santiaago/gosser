@@ -5,22 +5,28 @@ class App extends Component {
   constructor(props){
     super(props)
     this.state = {
-      dots: {}
+      dots: {},
+      connectionID: null,
+      numClients: 0,
     }
+    
     let es = new EventSource('http://localhost:8081/api/sse')
 
     es.onmessage = function(event){
       const msg = JSON.parse(event.data)
-      console.log('id:', msg.id)
       const dots = Object.assign({}, this.state.dots)
       dots[msg.id] = msg
       this.setState({dots: dots})
     }.bind(this)
 
     es.addEventListener("newConnection", function(e) {
-      var obj = JSON.parse(e.data);
-      console.log(obj)
-      this.setState({connectionID: obj.id})
+      const msg = JSON.parse(e.data)
+      this.setState({connectionID: msg.id})
+    }.bind(this))
+
+    es.addEventListener("numClients", function(e){
+      const msg = JSON.parse(e.data)
+      this.setState({numClients: msg.numClients})
     }.bind(this))
   }
 
@@ -44,6 +50,7 @@ class App extends Component {
       <div className='App'>
         <div className='App-header'>
           <h2>Go server send event demo by Santiago Arias</h2>
+          <div>Connected clients: {this.state.numClients}</div>
         </div>
         <canvas className='world' ref='canvas' height='500' width='500'/>
       </div>
