@@ -27,7 +27,7 @@ type Entity struct {
 //
 type World struct {
 	mutex    sync.Mutex
-	entities map[int]Entity
+	entities map[string]Entity
 	height   int
 	width    int
 }
@@ -36,7 +36,7 @@ type World struct {
 //
 func NewWorld() (world *World) {
 	world = &World{
-		entities: make(map[int]Entity),
+		entities: make(map[string]Entity),
 		height:   500,
 		width:    500,
 	}
@@ -45,7 +45,7 @@ func NewWorld() (world *World) {
 
 // MoveEntity moves an entity in the World instance.
 //
-func (world *World) MoveEntity(id int) Entity {
+func (world *World) MoveEntity(id string) Entity {
 	world.mutex.Lock()
 	defer world.mutex.Unlock()
 

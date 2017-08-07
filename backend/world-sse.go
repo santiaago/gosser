@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,8 @@ type Broker struct {
 	closingClientStats chan chan int
 	clientStats        map[chan int]bool
 	world              *World
+	connectionIDs      map[string]bool
+	mutex              sync.Mutex
 }
 
 // NewServer creates a broker instance and starts a new
@@ -39,15 +42,44 @@ func NewServer() (broker *Broker) {
 		closingClientStats: make(chan chan int),
 		clientStats:        make(map[chan int]bool),
 		world:              NewWorld(),
+		connectionIDs:      make(map[string]bool),
 	}
 	go broker.listen()
 	go broker.listenStats()
 	return
 }
 
+func (broker *Broker) storeConnectionID(connectionID string) {
+	broker.mutex.Lock()
+	defer broker.mutex.Unlock()
+
+	if _, ok := broker.connectionIDs[connectionID]; !ok {
+		broker.connectionIDs[connectionID] = true
+	}
+}
+
+func (broker *Broker) removeConnectionID(connectionID string) {
+	broker.mutex.Lock()
+	defer broker.mutex.Unlock()
+	delete(broker.connectionIDs, connectionID)
+}
+
+func (broker *Broker) randConnectionID() string {
+	broker.mutex.Lock()
+	defer broker.mutex.Unlock()
+	n := rand.Intn(len(broker.connectionIDs))
+	for id := range broker.connectionIDs {
+		if n == 0 {
+			return id
+		}
+		n--
+	}
+	return ""
+}
+
 // sendConnectionID sends a newConnection event to current connection.
 //
-func (broker *Broker) sendConnectionID(w http.ResponseWriter) {
+func (broker *Broker) sendConnectionID(w http.ResponseWriter, connectionID string) {
 
 	flusher, ok := w.(http.Flusher)
 
@@ -57,9 +89,9 @@ func (broker *Broker) sendConnectionID(w http.ResponseWriter) {
 	}
 
 	newConnection := struct {
-		ID int `json:"id"`
+		ID string `json:"id"`
 	}{
-		len(broker.clients),
+		connectionID,
 	}
 
 	if b, err := json.Marshal(newConnection); err == nil {
@@ -98,23 +130,19 @@ func (broker *Broker) sendWorldUpdate(w http.ResponseWriter, time []byte) {
 		return
 	}
 
-	n := len(broker.clients)
-	randID := 1
-	if n != 0 {
-		randID = rand.Intn(n)
-	}
+	randConnectionID := broker.randConnectionID()
 
 	var entity Entity
-	entity = broker.world.MoveEntity(randID)
+	entity = broker.world.MoveEntity(randConnectionID)
 
 	data := struct {
-		ID   int    `json:"id"`
+		ID   string `json:"id"`
 		Type string `json:"type"`
 		Time string `json:"time"`
 		X    int    `json:"x"`
 		Y    int    `json:"y"`
 	}{
-		randID,
+		randConnectionID,
 		"position",
 		fmt.Sprintf("%s", time),
 		entity.x,
@@ -143,13 +171,17 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	messageChan := make(chan []byte)
 	broker.newClients <- messageChan
 
-	broker.sendConnectionID(w)
+	connectionID := fmt.Sprintf("%s", time.Now())
+
+	broker.storeConnectionID(connectionID)
+	broker.sendConnectionID(w, connectionID)
 
 	// Remove this client from the map of connected clients when this handler exits.
 	defer func() {
 		log.Printf("closing chans")
 		broker.closingClients <- messageChan
 		broker.closingClientStats <- statsChan
+		broker.removeConnectionID(connectionID)
 	}()
 
 	// Listen to connection close and un-register messageChan
