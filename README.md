@@ -1,7 +1,50 @@
-# gosser
+gosser
+====
 go server send events react
 
-# sources:
+<!-- TOC -->
+
+- [build app](#build-app)
+    - [build backend](#build-backend)
+    - [build frontend](#build-frontend)
+- [run app](#run-app)
+    - [run backend](#run-backend)
+    - [run frontend](#run-frontend)
+- [resources:](#resources)
+
+<!-- /TOC -->
+
+# build app
+
+## build backend
+
+```
+>go build ./backend/*
+```
+
+## build frontend
+
+````
+>cd app
+>yarn
+````
+
+# run app
+
+## run backend
+
+```
+>./main
+```
+
+## run frontend
+
+```
+>cd app
+>yarn start
+```
+
+# resources:
 
 * [Stream Updates with Server-Sent Events](https://www.html5rocks.com/en/tutorials/eventsource/basics/)
 * [Go sse example](https://github.com/silalahi/go-sse/blob/master/example/server.go)
