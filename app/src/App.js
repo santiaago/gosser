@@ -19,6 +19,13 @@ class App extends Component {
       this.setState({dots: dots})
     }.bind(this)
 
+    es.addEventListener("removeConnection", function(e){
+      const msg = JSON.parse(e.data)
+      const dots = Object.assign({}, this.state.dots)
+      delete dots[msg.id]
+      this.setState({dots: dots})
+    }.bind(this))
+
     es.addEventListener("newConnection", function(e) {
       const msg = JSON.parse(e.data)
       this.setState({connectionID: msg.id})
