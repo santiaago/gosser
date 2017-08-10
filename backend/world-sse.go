@@ -16,17 +16,23 @@ const patience time.Duration = time.Millisecond * 20
 // Broker holds an instance of a World.
 //
 type Broker struct {
-	Notifier           chan []byte
-	newClients         chan chan []byte
-	closingClients     chan chan []byte
-	clients            map[chan []byte]bool
-	NotifierStats      chan int
+	Notifier       chan []byte
+	newClients     chan chan []byte
+	closingClients chan chan []byte
+	clients        map[chan []byte]bool
+
 	newClientStats     chan chan int
 	closingClientStats chan chan int
 	clientStats        map[chan int]bool
-	world              *World
-	connectionIDs      map[string]bool
-	mutex              sync.Mutex
+
+	NotifierRemove        chan []byte
+	newClientRemoves      chan chan []byte
+	closingClientsRemoves chan chan []byte
+	clientRemoves         map[chan []byte]bool
+
+	world         *World
+	connectionIDs map[string]bool
+	mutex         sync.Mutex
 }
 
 // NewServer creates a broker instance and starts a new
@@ -34,18 +40,23 @@ type Broker struct {
 //
 func NewServer() (broker *Broker) {
 	broker = &Broker{
-		Notifier:           make(chan []byte, 1),
-		newClients:         make(chan chan []byte),
-		closingClients:     make(chan chan []byte),
-		clients:            make(map[chan []byte]bool),
-		newClientStats:     make(chan chan int),
-		closingClientStats: make(chan chan int),
-		clientStats:        make(map[chan int]bool),
-		world:              NewWorld(),
-		connectionIDs:      make(map[string]bool),
+		Notifier:              make(chan []byte, 1),
+		newClients:            make(chan chan []byte),
+		closingClients:        make(chan chan []byte),
+		clients:               make(map[chan []byte]bool),
+		newClientStats:        make(chan chan int),
+		closingClientStats:    make(chan chan int),
+		clientStats:           make(map[chan int]bool),
+		NotifierRemove:        make(chan []byte, 1),
+		newClientRemoves:      make(chan chan []byte),
+		closingClientsRemoves: make(chan chan []byte),
+		clientRemoves:         make(map[chan []byte]bool),
+		world:                 NewWorld(),
+		connectionIDs:         make(map[string]bool),
 	}
 	go broker.listen()
 	go broker.listenStats()
+	go broker.listenRemoves()
 	return
 }
 
@@ -96,6 +107,30 @@ func (broker *Broker) sendConnectionID(w http.ResponseWriter, connectionID strin
 
 	if b, err := json.Marshal(newConnection); err == nil {
 		fmt.Fprintf(w, "event:newConnection\ndata:%s\n\n", b)
+	}
+
+	flusher.Flush()
+}
+
+// sendConnectionID sends a newConnection event to current connection.
+//
+func (broker *Broker) sendRemoveConnectionID(w http.ResponseWriter, connectionID string) {
+
+	flusher, ok := w.(http.Flusher)
+
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	connection := struct {
+		ID string `json:"id"`
+	}{
+		connectionID,
+	}
+
+	if b, err := json.Marshal(connection); err == nil {
+		fmt.Fprintf(w, "event:removeConnection\ndata:%s\n\n", b)
 	}
 
 	flusher.Flush()
@@ -167,6 +202,9 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	statsChan := make(chan int)
 	broker.newClientStats <- statsChan
 
+	removeChan := make(chan []byte)
+	broker.newClientRemoves <- removeChan
+
 	// Each connection registers its own message channel with the Broker's connections registry
 	messageChan := make(chan []byte)
 	broker.newClients <- messageChan
@@ -181,7 +219,10 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("closing chans")
 		broker.closingClients <- messageChan
 		broker.closingClientStats <- statsChan
+		broker.closingClientsRemoves <- removeChan
 		broker.removeConnectionID(connectionID)
+		broker.NotifierRemove <- []byte(connectionID)
+
 	}()
 
 	// Listen to connection close and un-register messageChan
@@ -194,6 +235,8 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case stats := <-statsChan:
 			log.Printf("sendNumberOfClientsUpdate")
 			broker.sendNumberOfClientsUpdate(w, stats)
+		case id := <-removeChan:
+			broker.sendRemoveConnectionID(w, string(id[:]))
 		default:
 			log.Printf("sendWorldUpdate")
 			broker.sendWorldUpdate(w, <-messageChan)
@@ -226,6 +269,26 @@ func (broker *Broker) listen() {
 					log.Print("Skipping client.")
 				}
 			}
+		}
+	}
+}
+
+func (broker *Broker) listenRemoves() {
+	for {
+		select {
+		case s := <-broker.newClientRemoves:
+			broker.clientRemoves[s] = true
+		case event := <-broker.NotifierRemove:
+			for clientMessageChan := range broker.clientRemoves {
+				select {
+				case clientMessageChan <- event:
+				case <-time.After(patience):
+					log.Print("Skipping client.")
+				}
+			}
+		case s := <-broker.closingClientsRemoves:
+			delete(broker.clientRemoves, s)
+			log.Printf("Removed client. %d registered removes clients", len(broker.clientRemoves))
 		}
 	}
 }
