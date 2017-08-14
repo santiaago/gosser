@@ -43,6 +43,14 @@ func NewWorld() (world *World) {
 	return
 }
 
+func mod(n, m int) int {
+	r := n % m
+	if r < 0 {
+		r = r + m
+	}
+	return r
+}
+
 // MoveEntity moves an entity in the World instance.
 //
 func (world *World) MoveEntity(id string) Entity {
@@ -51,7 +59,7 @@ func (world *World) MoveEntity(id string) Entity {
 
 	if _, ok := world.entities[id]; !ok {
 		world.entities[id] = Entity{
-			direction: rand.Intn(0),
+			direction: rand.Intn(4),
 			x:         rand.Intn(world.width),
 			y:         rand.Intn(world.height),
 		}
@@ -63,10 +71,10 @@ func (world *World) MoveEntity(id string) Entity {
 	y := world.entities[id].y
 
 	choices := []randutil.Choice{
-		randutil.Choice{Weight: 70, Item: d},
-		randutil.Choice{Weight: 10, Item: (d + 1) % 4},
-		randutil.Choice{Weight: 10, Item: (d - 1) % 4},
-		randutil.Choice{Weight: 10, Item: (d + 2) % 4},
+		randutil.Choice{Weight: 70, Item: mod(d, 4)},
+		randutil.Choice{Weight: 10, Item: mod((d + 1), 4)},
+		randutil.Choice{Weight: 10, Item: mod((d - 1), 4)},
+		randutil.Choice{Weight: 10, Item: mod((d + 2), 4)},
 	}
 
 	result, err := randutil.WeightedChoice(choices)
