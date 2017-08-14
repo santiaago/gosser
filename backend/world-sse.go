@@ -251,23 +251,24 @@ func (broker *Broker) listen() {
 	for {
 		select {
 		case s := <-broker.newClients:
-
+			log.Println("listen: newClients")
 			// A new client has connected.
 			// Register their message channel
 			broker.clients[s] = true
-			log.Printf("Client added. %d registered clients", len(broker.clients))
+			log.Printf("listen: Client added. %d registered clients", len(broker.clients))
 		case s := <-broker.closingClients:
 			delete(broker.clients, s)
-			log.Printf("Removed client. %d registered clients", len(broker.clients))
+			log.Printf("listen: closingClients. %d registered clients", len(broker.clients))
 		case event := <-broker.Notifier:
 
 			// We got a new event from the outside!
 			// Send event to all connected clients
 			for clientMessageChan := range broker.clients {
+				log.Println("listen: client Notify")
 				select {
 				case clientMessageChan <- event:
 				case <-time.After(patience):
-					log.Print("Skipping client.")
+					log.Print("listen: Skipping client.")
 				}
 			}
 		}
@@ -278,9 +279,11 @@ func (broker *Broker) listenRemoves() {
 	for {
 		select {
 		case s := <-broker.newClientRemoves:
+			log.Println("listenStats: newClientRemoves")
 			broker.clientRemoves[s] = true
 		case event := <-broker.NotifierRemove:
 			for clientMessageChan := range broker.clientRemoves {
+				log.Printf("listenRemoves: NotifierRemove %s\n", event)
 				select {
 				case clientMessageChan <- event:
 				case <-time.After(patience):
@@ -289,7 +292,7 @@ func (broker *Broker) listenRemoves() {
 			}
 		case s := <-broker.closingClientsRemoves:
 			delete(broker.clientRemoves, s)
-			log.Printf("Removed client. %d registered removes clients", len(broker.clientRemoves))
+			log.Printf("listenRemoves: closingClientsRemoves. %d registered removes clients\n", len(broker.clientRemoves))
 		}
 	}
 }
@@ -300,6 +303,7 @@ func (broker *Broker) listenStats() {
 	for {
 		select {
 		case s := <-broker.newClientStats:
+			log.Println("listenStats: newClientStats")
 			broker.clientStats[s] = true
 			log.Printf("NumberOfClients client added. %d registered clients", len(broker.clientStats))
 			for msgChan := range broker.clientStats {
@@ -308,7 +312,7 @@ func (broker *Broker) listenStats() {
 			}
 		case s := <-broker.closingClientStats:
 			delete(broker.clientStats, s)
-			log.Printf("Removed number of clients. %d registered clients", len(broker.clientStats))
+			log.Printf("listenStats: closingClientStats %d registered clients", len(broker.clientStats))
 		}
 	}
 }
