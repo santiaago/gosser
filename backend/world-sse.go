@@ -238,7 +238,7 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case id := <-removeChan:
 			broker.sendRemoveConnectionID(w, string(id[:]))
 		default:
-			log.Printf("sendWorldUpdate")
+			// log.Printf("sendWorldUpdate")
 			broker.sendWorldUpdate(w, <-messageChan)
 		}
 	}

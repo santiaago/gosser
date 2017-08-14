@@ -19,7 +19,7 @@ func main() {
 		for {
 			time.Sleep(time.Millisecond * 20)
 			eventString := fmt.Sprintf("%v", time.Now())
-			log.Println("Receiving event")
+			// log.Println("Receiving event")
 			broker.Notifier <- []byte(eventString)
 		}
 	}()
