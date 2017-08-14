@@ -51,9 +51,9 @@ func (world *World) MoveEntity(id string) Entity {
 
 	if _, ok := world.entities[id]; !ok {
 		world.entities[id] = Entity{
-			rand.Intn(4),
-			rand.Intn(world.width),
-			rand.Intn(world.height),
+			direction: rand.Intn(0),
+			x:         rand.Intn(world.width),
+			y:         rand.Intn(world.height),
 		}
 		return world.entities[id]
 	}
@@ -72,8 +72,7 @@ func (world *World) MoveEntity(id string) Entity {
 	result, err := randutil.WeightedChoice(choices)
 
 	if err != nil {
-		log.Println("unable to pick direction", err)
-
+		log.Println("unable to pick direction", err, result)
 	}
 
 	switch result.Item {
@@ -86,7 +85,7 @@ func (world *World) MoveEntity(id string) Entity {
 	case west:
 		x = (x - 1) % world.width
 	default:
-		log.Println("unexpected direction result")
+		log.Println("unexpected direction result", result.Item)
 	}
 
 	world.entities[id] = Entity{
