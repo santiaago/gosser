@@ -199,6 +199,9 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	connectionID := fmt.Sprintf("%s", time.Now())
+	log.Printf("ServeHTTP starting chans for id:%s", connectionID)
+
 	statsChan := make(chan int)
 	broker.newClientStats <- statsChan
 
@@ -208,8 +211,6 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Each connection registers its own message channel with the Broker's connections registry
 	messageChan := make(chan []byte)
 	broker.newClients <- messageChan
-
-	connectionID := fmt.Sprintf("%s", time.Now())
 
 	broker.storeConnectionID(connectionID)
 	broker.sendConnectionID(w, connectionID)
