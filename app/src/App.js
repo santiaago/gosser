@@ -22,6 +22,7 @@ class App extends Component {
     es.addEventListener("removeConnection", function(e){
       const msg = JSON.parse(e.data)
       const dots = Object.assign({}, this.state.dots)
+      console.log('trying to remove dot with id:', msg.id)
       delete dots[msg.id]
       this.setState({dots: dots})
     }.bind(this))
