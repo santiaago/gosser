@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -30,9 +32,10 @@ type Broker struct {
 	closingClientsRemoves chan chan []byte
 	clientRemoves         map[chan []byte]bool
 
-	world         *World
-	connectionIDs map[string]bool
-	mutex         sync.Mutex
+	world               *World
+	connectionIDs       map[string]bool
+	closedConnectionIDs map[string]bool
+	mutex               sync.Mutex
 }
 
 // NewServer creates a broker instance and starts a new
@@ -53,6 +56,7 @@ func NewServer() (broker *Broker) {
 		clientRemoves:         make(map[chan []byte]bool),
 		world:                 NewWorld(),
 		connectionIDs:         make(map[string]bool),
+		closedConnectionIDs:   make(map[string]bool),
 	}
 	go broker.listen()
 	go broker.listenStats()
@@ -73,6 +77,10 @@ func (broker *Broker) removeConnectionID(connectionID string) {
 	broker.mutex.Lock()
 	defer broker.mutex.Unlock()
 	delete(broker.connectionIDs, connectionID)
+
+	if _, ok := broker.closedConnectionIDs[connectionID]; !ok {
+		broker.closedConnectionIDs[connectionID] = true
+	}
 }
 
 func (broker *Broker) randConnectionID() string {
@@ -222,8 +230,6 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		broker.closingClientStats <- statsChan
 		broker.closingClientsRemoves <- removeChan
 		broker.removeConnectionID(connectionID)
-		broker.NotifierRemove <- []byte(connectionID)
-
 	}()
 
 	// Listen to connection close and un-register messageChan
@@ -238,6 +244,14 @@ func (broker *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			broker.sendNumberOfClientsUpdate(w, stats)
 		case id := <-removeChan:
 			broker.sendRemoveConnectionID(w, string(id[:]))
+		case bids := <-removeChan:
+			ids := []string{}
+			b := bytes.NewBuffer(bids)
+			gob.NewDecoder(b).Decode(&ids)
+			for _, id := range ids {
+				log.Printf("removeChan, calling sendRemoveConnectionID %s\n", id)
+				broker.sendRemoveConnectionID(w, string(id[:]))
+			}
 		default:
 			// log.Printf("sendWorldUpdate")
 			broker.sendWorldUpdate(w, <-messageChan)
@@ -279,11 +293,12 @@ func (broker *Broker) listenRemoves() {
 	for {
 		select {
 		case s := <-broker.newClientRemoves:
-			log.Println("listenStats: newClientRemoves")
+			log.Println("listenRemoves: newClientRemoves")
 			broker.clientRemoves[s] = true
+			log.Printf("listenRemoves: Client added. %d registered clients", len(broker.clientRemoves))
 		case event := <-broker.NotifierRemove:
 			for clientMessageChan := range broker.clientRemoves {
-				log.Printf("listenRemoves: NotifierRemove %s\n", event)
+				log.Printf("listenRemoves: NotifierRemove\n")
 				select {
 				case clientMessageChan <- event:
 				case <-time.After(patience):
@@ -291,10 +306,28 @@ func (broker *Broker) listenRemoves() {
 				}
 			}
 		case s := <-broker.closingClientsRemoves:
+			log.Printf("listenRemoves: closingClientsRemoves. start %d registered removes clients\n", len(broker.clientRemoves))
 			delete(broker.clientRemoves, s)
 			log.Printf("listenRemoves: closingClientsRemoves. %d registered removes clients\n", len(broker.clientRemoves))
+
+			b := &bytes.Buffer{}
+			gob.NewEncoder(b).Encode(broker.closedConnections())
+			broker.NotifierRemove <- b.Bytes()
 		}
 	}
+}
+
+func (broker *Broker) closedConnections() []string {
+
+	broker.mutex.Lock()
+	defer broker.mutex.Unlock()
+
+	ids := make([]string, 0, len(broker.closedConnectionIDs))
+	for id := range broker.closedConnectionIDs {
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // listenStats listens all client stat actions in broker.
